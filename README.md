@@ -16,15 +16,12 @@ This repository contains a modular **ESPHome package** for the **Nous A1T** WiFi
 
 ## 🛠 How it Works
 
-The socket runs a background script (`timer_watchdog`). 
+The socket uses an "Arm-on-Heartbeat" logic for maximum safety:
 
-1.  **Start:** When the socket turns on, the timer starts (default: 300 seconds).
-2.  **Heartbeat:** Your Home Assistant (or the server) must send a **"Heartbeat"** signal to the socket periodically. This resets the timer back to the beginning.
-3.  **Timeout:** If the heartbeat is **not received** before the timer expires (e.g., the server hangs), the socket performs a power cycle:
-    * Relay turns **OFF** for 60 seconds.
-    * Relay turns **ON** to reboot the server.
-
-
+1.  **Standby:** When the socket turns on (or reboots), the Watchdog timer is **disarmed**. The power stays ON indefinitely.
+2.  **Arming:** The timer only starts once Home Assistant sends the **first "Heartbeat"** signal.
+3.  **Heartbeat:** Every subsequent heartbeat resets the timer to the beginning.
+4.  **Timeout:** If the timer expires (server freeze), the socket performs a power cycle (Off for 60s, then On) and returns to the **Standby** state until HA boots and arms it again.
 
 ---
 
