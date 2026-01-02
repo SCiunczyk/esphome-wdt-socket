@@ -2,6 +2,7 @@
 # Project: Nous.WDT-Socket
 # Device: Nous A1T (ESP8285)
 # Function: Smart Plug with Hardware/Software Watchdog logic
+# Version: 1.0.1 (Wait for first heartbeat)
 # =========================================================================
 
 esphome:
@@ -17,6 +18,7 @@ esp8266:
 # --- Watchdog Logic ---
 script:
   - id: timer_watchdog
+    # mode: restart allows the heartbeat to reset the countdown
     mode: restart
     then:
       - delay: ${watchdog_on_time}
@@ -26,7 +28,7 @@ script:
       - delay: ${watchdog_off_time}
       - switch.turn_on: relay
       - light.turn_on: led
-      - logger.log: "Watchdog cycle complete. Power restored."
+      - logger.log: "Watchdog cycle complete. System in Standby, waiting for HA heartbeat."
 
 # --- Interaction Components ---
 button:
@@ -35,7 +37,7 @@ button:
     name: "Watchdog Heartbeat"
     icon: mdi:dog-side
     on_press:
-      # The watchdog ONLY starts/resets when this button is pressed (from HA)
+      # The watchdog starts/resets ONLY when this button is pressed (from HA)
       - script.execute: timer_watchdog
 
 time:
@@ -54,6 +56,7 @@ binary_sensor:
   - platform: status
     name: "Connection Status"
   
+  # Physical button on the housing
   - platform: gpio
     pin:
       number: GPIO00
@@ -75,7 +78,8 @@ switch:
       - script.stop: timer_watchdog
       - switch.turn_on: relay
       - light.turn_on: led
-      # REMOVED: script.execute - waiting for first heartbeat instead
+      # In this version, we do NOT start the script here.
+      # We wait for the first button.press from Home Assistant.
     turn_off_action:
       - script.stop: timer_watchdog
       - switch.turn_off: relay
@@ -84,7 +88,7 @@ switch:
   - platform: gpio
     pin: GPIO14
     id: relay
-    internal: true 
+    internal: true # Hidden from UI, controlled via the template switch
 
 # --- Power Monitoring ---
 sensor:
@@ -102,6 +106,7 @@ sensor:
       - multiply: 0.001
     unit_of_measurement: kWh
   
+  # HLW8012 Power Monitoring Chip configuration
   - platform: hlw8012
     sel_pin: { number: GPIO12, inverted: True }
     cf_pin: GPIO04
