@@ -7,18 +7,16 @@
 esphome:
   project:
     name: "Nous.WDT-Socket"
-    version: "1.0.0"
+    version: "1.0.1"
 
 esp8266:
   board: esp8285
   restore_from_flash: true
-  early_pin_init: False
+  early_pin_init: false
 
 # --- Watchdog Logic ---
 script:
   - id: timer_watchdog
-    # "restart" mode ensures that every time the script is called, 
-    # the countdown starts over from zero (heartbeat behavior).
     mode: restart
     then:
       - delay: ${watchdog_on_time}
@@ -37,6 +35,7 @@ button:
     name: "Watchdog Heartbeat"
     icon: mdi:dog-side
     on_press:
+      # The watchdog ONLY starts/resets when this button is pressed (from HA)
       - script.execute: timer_watchdog
 
 time:
@@ -55,7 +54,6 @@ binary_sensor:
   - platform: status
     name: "Connection Status"
   
-  # Physical button on the housing
   - platform: gpio
     pin:
       number: GPIO00
@@ -77,8 +75,7 @@ switch:
       - script.stop: timer_watchdog
       - switch.turn_on: relay
       - light.turn_on: led
-      # Automatically start/reset watchdog when turned on
-      - script.execute: timer_watchdog
+      # REMOVED: script.execute - waiting for first heartbeat instead
     turn_off_action:
       - script.stop: timer_watchdog
       - switch.turn_off: relay
@@ -87,7 +84,7 @@ switch:
   - platform: gpio
     pin: GPIO14
     id: relay
-    internal: true # Hidden from UI, controlled via the template switch
+    internal: true 
 
 # --- Power Monitoring ---
 sensor:
@@ -105,7 +102,6 @@ sensor:
       - multiply: 0.001
     unit_of_measurement: kWh
   
-  # HLW8012 Power Monitoring Chip configuration
   - platform: hlw8012
     sel_pin: { number: GPIO12, inverted: True }
     cf_pin: GPIO04
