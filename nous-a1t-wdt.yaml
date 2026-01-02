@@ -1,0 +1,135 @@
+# =========================================================================
+# Project: Nous.WDT-Socket
+# Device: Nous A1T (ESP8285)
+# Function: Smart Plug with Hardware/Software Watchdog logic
+# =========================================================================
+
+esphome:
+  project:
+    name: "Nous.WDT-Socket"
+    version: "1.0.0"
+
+esp8266:
+  board: esp8285
+  restore_from_flash: true
+  early_pin_init: False
+
+# --- Watchdog Logic ---
+script:
+  - id: timer_watchdog
+    # "restart" mode ensures that every time the script is called, 
+    # the countdown starts over from zero (heartbeat behavior).
+    mode: restart
+    then:
+      - delay: ${watchdog_on_time}
+      - logger.log: "Watchdog timeout reached! Rebooting connected device..."
+      - switch.turn_off: relay
+      - light.turn_off: led
+      - delay: ${watchdog_off_time}
+      - switch.turn_on: relay
+      - light.turn_on: led
+      - logger.log: "Watchdog cycle complete. Power restored."
+
+# --- Interaction Components ---
+button:
+  - platform: template
+    id: "watchdog_reset"
+    name: "Watchdog Heartbeat"
+    icon: mdi:dog-side
+    on_press:
+      - script.execute: timer_watchdog
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+light:
+  - platform: status_led
+    id: led
+    restore_mode: RESTORE_DEFAULT_ON
+    pin:
+      number: GPIO13
+      inverted: true
+
+binary_sensor:
+  - platform: status
+    name: "Connection Status"
+  
+  # Physical button on the housing
+  - platform: gpio
+    pin:
+      number: GPIO00
+      mode: INPUT_PULLUP
+    id: "physical_button"
+    on_press:
+      - switch.toggle: main_switch
+
+switch:
+  - platform: template
+    name: "Main Switch"
+    id: main_switch
+    icon: mdi:power
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    lambda: |-
+      return id(relay).state;
+    turn_on_action:
+      - script.stop: timer_watchdog
+      - switch.turn_on: relay
+      - light.turn_on: led
+      # Automatically start/reset watchdog when turned on
+      - script.execute: timer_watchdog
+    turn_off_action:
+      - script.stop: timer_watchdog
+      - switch.turn_off: relay
+      - light.turn_off: led
+
+  - platform: gpio
+    pin: GPIO14
+    id: relay
+    internal: true # Hidden from UI, controlled via the template switch
+
+# --- Power Monitoring ---
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+    
+  - platform: uptime
+    name: "Uptime"
+    
+  - platform: total_daily_energy
+    name: "Daily Consumption"
+    power_id: "wattage_sensor"
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: kWh
+  
+  # HLW8012 Power Monitoring Chip configuration
+  - platform: hlw8012
+    sel_pin: { number: GPIO12, inverted: True }
+    cf_pin: GPIO04
+    cf1_pin: GPIO05
+    change_mode_every: 4
+    current_resistor: ${current_res}
+    voltage_divider: ${voltage_div}
+    update_interval: 3s
+    current:
+      name: "Amperage"
+      unit_of_measurement: A
+      accuracy_decimals: 3
+    voltage:
+      name: "Voltage"
+      unit_of_measurement: V
+      accuracy_decimals: 1
+    power:
+      name: "Power"
+      id: "wattage_sensor"
+      unit_of_measurement: W
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+  - platform: version
+    name: "ESPHome Version"
